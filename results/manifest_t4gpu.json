@@ -1,7 +1,8 @@
 {
  "tag": "t4gpu",
+ "dataset": "synthetic",
  "quick": false,
- "total_runtime_s": 298.7,
+ "total_runtime_s": 307.3,
  "hardware": {
   "platform": "colab",
   "system": "Linux",
@@ -48,9 +49,11 @@
   "img_noise": 0.12,
   "cue_depth": 0.22,
   "cue_noise_img": 0.1,
-  "cue_noise_note": 0.12
+  "cue_noise_note": 0.12,
+  "pub_train_per_class": 500,
+  "pub_test_per_class": 150
  },
  "timings_s": {
-  "train_all_models": 262.3
+  "train_all_models": 270.1
  }
 }
