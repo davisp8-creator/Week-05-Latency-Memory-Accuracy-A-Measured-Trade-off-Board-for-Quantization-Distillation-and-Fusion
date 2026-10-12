@@ -1,4 +1,4 @@
-# Week-05_Measured-Tradeoff-Board
+# Week-05-Latency-Memory-Accuracy-A-Measured-Trade-off-Board-for-Quantization-Distillation-and-Fusion
 Latency, Memory, Accuracy: A Measured Trade-off Board for Quantization, Distillation, and Fusion
 
 Brightline Logistics scouting study: which small model should ship to in-cab Android tablets that read scanned bills of lading and short spoken driver notes? This repo answers with measurements from one free GPU (and an Intel VM for comparison): up to nine configurations of a small two-modality model (seven on a CPU-only machine, where FP16 and the separate CPU baseline do not apply), benchmarked with warm-up, device synchronization, fixed seeds and repeated trials, recorded in an Excel workbook, plus a scaling-law compute estimate for a 10x larger version.

@@ -22,11 +22,11 @@ Without the secret, you get a hidden prompt at the end (the token isn't echoed o
 **Runtime → Change runtime type → T4 GPU → Save.** Then, in the notebook's first cell (or a scratch cell above it):
 
 ```python
-!git clone https://github.com/davisp8-creator/Week-05_Measured-Tradeoff-Board.git
-%cd Week-05_Measured-Tradeoff-Board
+!git clone https://github.com/davisp8-creator/Week-05-Latency-Memory-Accuracy-A-Measured-Trade-off-Board-for-Quantization-Distillation-and-Fusion.git
+%cd Week-05-Latency-Memory-Accuracy-A-Measured-Trade-off-Board-for-Quantization-Distillation-and-Fusion
 ```
 
-(Use your repo's actual URL.) Results land in the clone's `results/` folder, which is what makes the end-of-run push
+Results land in the clone's `results/` folder, which is what makes the end-of-run push
 possible, and the workbook step imports `scripts/build_workbook.py` from the clone. If you skip the clone, Step 1 warns
 you and Step 12 fails with a clear import error; the zip download in Step 13 still needs the clone's `results/` folder.
 
