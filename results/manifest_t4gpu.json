@@ -1,7 +1,7 @@
 {
  "tag": "t4gpu",
  "quick": false,
- "total_runtime_s": 302.2,
+ "total_runtime_s": 298.7,
  "hardware": {
   "platform": "colab",
   "system": "Linux",
@@ -51,6 +51,6 @@
   "cue_noise_note": 0.12
  },
  "timings_s": {
-  "train_all_models": 266.6
+  "train_all_models": 262.3
  }
 }
