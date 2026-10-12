@@ -84,7 +84,7 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 | Host class | `intel-vm` | `colab-t4` |
 | Platform / Python | windows / 3.14.7 | colab / 3.13.15 |
 | torch | `2.14.1+cpu` | `2.11.0+cu130` |
-| **Total notebook runtime** (synthetic set) | 1,177.5 s | 298.7 s |
+| **Total notebook runtime** (synthetic set) | 1,177.5 s | 307.3 s |
 
 ### Board: synthetic set (generated here)
 
@@ -101,15 +101,15 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 | `baseline_fp16` | – | 0.792 ± 0.013 |
 | `cpu_baseline_fp32` | – | 0.793 ± 0.014 |
 | **p50 / p95 latency, ms (batch 1)** | | |
-| `baseline_fp32` | 0.620 / 0.894 | 1.504 / 2.208 |
-| `linear_attn` | 0.846 / 1.245 | 2.619 / 3.569 |
-| `early_fusion` | 0.559 / 0.804 | 1.190 / 1.576 |
-| `early_fusion_2x` | 0.582 / 0.880 | 1.191 / 1.416 |
-| `student_kd` | 0.391 / 0.600 | 1.208 / 1.519 |
-| `student_nokd` | 0.388 / 0.609 | 1.207 / 1.632 |
-| `cpu_baseline_int8` | 1.046 / 1.553 | 2.133 / 3.075 |
-| `baseline_fp16` | – | 1.723 / 2.322 |
-| `cpu_baseline_fp32` | – | 2.122 / 3.494 |
+| `baseline_fp32` | 0.620 / 0.894 | 1.575 / 2.057 |
+| `linear_attn` | 0.846 / 1.245 | 2.832 / 4.026 |
+| `early_fusion` | 0.559 / 0.804 | 1.303 / 1.548 |
+| `early_fusion_2x` | 0.582 / 0.880 | 1.370 / 1.821 |
+| `student_kd` | 0.391 / 0.600 | 1.149 / 1.587 |
+| `student_nokd` | 0.388 / 0.609 | 1.214 / 1.529 |
+| `cpu_baseline_int8` | 1.046 / 1.553 | 2.670 / 5.282 |
+| `baseline_fp16` | – | 1.757 / 2.380 |
+| `cpu_baseline_fp32` | – | 1.743 / 2.251 |
 | **Model size (MB) / peak GPU memory above floor (MB)** | | |
 | `baseline_fp32` | 0.543 / n/a | 0.543 / 1.695 |
 | `linear_attn` | 0.543 / n/a | 0.543 / 1.695 |
@@ -125,32 +125,38 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 
 Real photos with human captions from Hugging Face `intro/flickr8k` (license declared CC0-1.0). 2836 training and 884 held-out photos. The dataset has no class labels: the six scene classes are derived from captions 1–4 by a keyword rule, and caption 0 is the text input. A keyword rule on that text alone scores 0.738 (chance 0.167), so read this set as a check that the technique ranking holds on real data, not as a document-classification result. Accuracy is not comparable with the synthetic set.
 
-| Config | Intel VM · CPU only |
-|---|---:|
-| **Accuracy (mean ± seed std)** | |
-| `baseline_fp32` | 0.795 ± 0.008 |
-| `linear_attn` | 0.794 ± 0.012 |
-| `early_fusion` | 0.769 ± 0.015 |
-| `early_fusion_2x` | 0.777 ± 0.010 |
-| `student_kd` | 0.732 ± 0.007 |
-| `student_nokd` | 0.739 ± 0.006 |
-| `cpu_baseline_int8` | 0.795 ± 0.011 |
-| **p50 / p95 latency, ms (batch 1)** | |
-| `baseline_fp32` | 0.630 / 0.925 |
-| `linear_attn` | 0.852 / 1.151 |
-| `early_fusion` | 0.567 / 0.847 |
-| `early_fusion_2x` | 0.564 / 0.851 |
-| `student_kd` | 0.396 / 0.630 |
-| `student_nokd` | 0.399 / 0.632 |
-| `cpu_baseline_int8` | 1.057 / 1.446 |
-| **Model size (MB) / peak GPU memory above floor (MB)** | |
-| `baseline_fp32` | 0.722 / n/a |
-| `linear_attn` | 0.722 / n/a |
-| `early_fusion` | 0.626 / n/a |
-| `early_fusion_2x` | 0.626 / n/a |
-| `student_kd` | 0.091 / n/a |
-| `student_nokd` | 0.091 / n/a |
-| `cpu_baseline_int8` | 0.423 / n/a |
+| Config | Intel VM · CPU only | Colab · T4 GPU |
+|---|---:|---:|
+| **Accuracy (mean ± seed std)** | | |
+| `baseline_fp32` | 0.795 ± 0.008 | 0.789 ± 0.002 |
+| `linear_attn` | 0.794 ± 0.012 | 0.799 ± 0.001 |
+| `early_fusion` | 0.769 ± 0.015 | 0.774 ± 0.013 |
+| `early_fusion_2x` | 0.777 ± 0.010 | 0.784 ± 0.007 |
+| `student_kd` | 0.732 ± 0.007 | 0.747 ± 0.006 |
+| `student_nokd` | 0.739 ± 0.006 | 0.745 ± 0.012 |
+| `cpu_baseline_int8` | 0.795 ± 0.011 | 0.791 ± 0.002 |
+| `baseline_fp16` | – | 0.789 ± 0.002 |
+| `cpu_baseline_fp32` | – | 0.789 ± 0.002 |
+| **p50 / p95 latency, ms (batch 1)** | | |
+| `baseline_fp32` | 0.630 / 0.925 | 1.668 / 2.218 |
+| `linear_attn` | 0.852 / 1.151 | 2.753 / 3.600 |
+| `early_fusion` | 0.567 / 0.847 | 1.324 / 1.632 |
+| `early_fusion_2x` | 0.564 / 0.851 | 1.301 / 1.667 |
+| `student_kd` | 0.396 / 0.630 | 1.135 / 1.266 |
+| `student_nokd` | 0.399 / 0.632 | 1.132 / 1.329 |
+| `cpu_baseline_int8` | 1.057 / 1.446 | 2.577 / 3.687 |
+| `baseline_fp16` | – | 1.617 / 1.939 |
+| `cpu_baseline_fp32` | – | 1.708 / 2.078 |
+| **Model size (MB) / peak GPU memory above floor (MB)** | | |
+| `baseline_fp32` | 0.722 / n/a | 0.722 / 1.875 |
+| `linear_attn` | 0.722 / n/a | 0.722 / 1.875 |
+| `early_fusion` | 0.626 / n/a | 0.627 / 1.991 |
+| `early_fusion_2x` | 0.626 / n/a | 0.627 / 1.991 |
+| `student_kd` | 0.091 / n/a | 0.091 / 1.187 |
+| `student_nokd` | 0.091 / n/a | 0.091 / 1.187 |
+| `cpu_baseline_int8` | 0.423 / n/a | 0.423 / n/a |
+| `baseline_fp16` | – | 0.369 / 1.002 |
+| `cpu_baseline_fp32` | – | 0.722 / n/a |
 
 ![Accuracy vs latency](results/figs_workbook/board_tradeoff.png)
 
