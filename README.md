@@ -69,7 +69,7 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 | Host class | `intel-vm` | `colab-t4` |
 | Platform / Python | windows / 3.14.7 | colab / 3.13.15 |
 | torch | `2.14.1+cpu` | `2.11.0+cu130` |
-| **Total notebook runtime** | 1,177.5 s | 302.2 s |
+| **Total notebook runtime** | 1,177.5 s | 298.7 s |
 
 ### Board
 
@@ -86,24 +86,24 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 | `baseline_fp16` | – | 0.792 ± 0.013 |
 | `cpu_baseline_fp32` | – | 0.793 ± 0.014 |
 | **p50 / p95 latency, ms (batch 1)** | | |
-| `baseline_fp32` | 0.620 / 0.894 | 1.616 / 2.214 |
-| `linear_attn` | 0.846 / 1.245 | 2.799 / 3.667 |
-| `early_fusion` | 0.559 / 0.804 | 1.197 / 1.667 |
-| `early_fusion_2x` | 0.582 / 0.880 | 1.319 / 1.878 |
-| `student_kd` | 0.391 / 0.600 | 1.146 / 1.547 |
-| `student_nokd` | 0.388 / 0.609 | 1.143 / 1.320 |
-| `cpu_baseline_int8` | 1.046 / 1.553 | 2.652 / 4.836 |
-| `baseline_fp16` | – | 1.639 / 2.122 |
-| `cpu_baseline_fp32` | – | 1.677 / 2.042 |
-| **Model size (MB) / peak GPU memory (MB)** | | |
-| `baseline_fp32` | 0.543 / n/a | 0.543 / 18.945 |
-| `linear_attn` | 0.543 / n/a | 0.543 / 18.945 |
-| `early_fusion` | 0.447 / n/a | 0.448 / 19.062 |
-| `early_fusion_2x` | 0.447 / n/a | 0.448 / 19.062 |
-| `student_kd` | 0.046 / n/a | 0.047 / 18.392 |
-| `student_nokd` | 0.046 / n/a | 0.047 / 18.392 |
+| `baseline_fp32` | 0.620 / 0.894 | 1.504 / 2.208 |
+| `linear_attn` | 0.846 / 1.245 | 2.619 / 3.569 |
+| `early_fusion` | 0.559 / 0.804 | 1.190 / 1.576 |
+| `early_fusion_2x` | 0.582 / 0.880 | 1.191 / 1.416 |
+| `student_kd` | 0.391 / 0.600 | 1.208 / 1.519 |
+| `student_nokd` | 0.388 / 0.609 | 1.207 / 1.632 |
+| `cpu_baseline_int8` | 1.046 / 1.553 | 2.133 / 3.075 |
+| `baseline_fp16` | – | 1.723 / 2.322 |
+| `cpu_baseline_fp32` | – | 2.122 / 3.494 |
+| **Model size (MB) / peak GPU memory above floor (MB)** | | |
+| `baseline_fp32` | 0.543 / n/a | 0.543 / 1.695 |
+| `linear_attn` | 0.543 / n/a | 0.543 / 1.695 |
+| `early_fusion` | 0.447 / n/a | 0.448 / 1.812 |
+| `early_fusion_2x` | 0.447 / n/a | 0.448 / 1.812 |
+| `student_kd` | 0.046 / n/a | 0.047 / 1.142 |
+| `student_nokd` | 0.046 / n/a | 0.047 / 1.142 |
 | `cpu_baseline_int8` | 0.244 / n/a | 0.244 / n/a |
-| `baseline_fp16` | – | 0.280 / 18.162 |
+| `baseline_fp16` | – | 0.280 / 0.912 |
 | `cpu_baseline_fp32` | – | 0.543 / n/a |
 
 ![Accuracy vs latency](results/figs_workbook/board_tradeoff.png)
