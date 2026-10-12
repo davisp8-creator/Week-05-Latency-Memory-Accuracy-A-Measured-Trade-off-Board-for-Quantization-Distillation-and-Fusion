@@ -42,11 +42,12 @@ PACKAGE_MAP = {
     "torch": "torch",
     "openpyxl": "openpyxl",
     "psutil": "psutil",
+    "PIL": "pillow",
 }
 ASSIGNMENT_SCRIPT = Path("scripts") / "Assignment_05_Tradeoff_Board.py"
 # helper modules the assignment script imports at run time; their third-party imports count too
-HELPER_SCRIPTS = [Path("scripts") / "build_workbook.py", Path("scripts") / "update_readme.py"]
-LOCAL_MODULES = {"env_setup", "update_readme", "build_workbook"}
+HELPER_SCRIPTS = [Path("scripts") / "build_workbook.py", Path("scripts") / "update_readme.py", Path("scripts") / "public_data.py"]
+LOCAL_MODULES = {"env_setup", "update_readme", "build_workbook", "public_data"}
 COLAB_ONLY_MODULES = {"google"}   # google.colab: provided by Colab, only imported behind a platform check
 MIN_PYTHON = (3, 10)
 T4_RUNTIME_HINT = (

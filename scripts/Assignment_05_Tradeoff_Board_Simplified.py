@@ -27,6 +27,7 @@ import math
 import os
 import platform
 import random
+import subprocess
 import time
 
 import numpy as np
@@ -39,10 +40,15 @@ import torch.nn.functional as F
 T_START = time.perf_counter()
 IN_NOTEBOOK = "ipykernel" in sys.modules
 QUICK = os.environ.get("BOARD_QUICK") == "1"  # smoke test only: results NOT meaningful
+DATASET = os.environ.get("BOARD_DATASET", "synthetic")  # "synthetic" (generated here) or "public" (Flickr8k + captions)
+if DATASET not in ("synthetic", "public"):
+    raise SystemExit(f"BOARD_DATASET must be 'synthetic' or 'public', got {DATASET!r}")
+PUBLIC = DATASET == "public"
+IS_CHILD = os.environ.get("BOARD_CHILD") == "1"  # set by the parent run that launches the public-set run
 CFG = dict(
     n_train=800 if QUICK else 8000,
     n_test=400 if QUICK else 2000,
-    epochs=2 if QUICK else 15,
+    epochs=2 if QUICK else (30 if PUBLIC else 15),  # the public set has about a third of the training examples
     seeds=[0, 1] if QUICK else [0, 1, 2],
     trials=2 if QUICK else 5,
     n_iter=20 if QUICK else 300,
@@ -58,14 +64,16 @@ CFG = dict(
     cue_depth=0.22,
     cue_noise_img=0.10,
     cue_noise_note=0.12,
+    pub_train_per_class=60 if QUICK else 500,  # public set: class-capped subset sizes
+    pub_test_per_class=25 if QUICK else 150,
 )
-RUN_TAG = ENV["tag"] + ("_quick" if QUICK else "")
+RUN_TAG = ENV["tag"] + ("_public" if PUBLIC else "") + ("_quick" if QUICK else "")
 RESULTS_DIR = ROOT / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 DEVICE = torch.device(ENV["device"])
 HAS_CUDA = DEVICE.type == "cuda"
 torch.set_num_threads(CFG["cpu_threads"])
-print(f"tag={RUN_TAG}  device={DEVICE}  host={ENV['host_class']}" + ("  [QUICK smoke-test mode]" if QUICK else ""))
+print(f"tag={RUN_TAG}  dataset={DATASET}  device={DEVICE}  host={ENV['host_class']}" + ("  [QUICK smoke-test mode]" if QUICK else ""))
 print(CFG)
 
 
@@ -78,7 +86,7 @@ def set_seed(s):
     torch.backends.cudnn.benchmark = False
 
 
-# Step 3: Synthetic Evaluation Set (Generated Here, One Fixed Seed for Every Configuration)
+# Step 3: Evaluation Sets (Synthetic Generated Here, or the Public Flickr8k Set)
 ACCEPT = ["receiver accepted this load and signed", "consignee signed for this delivery no issues",
           "dock confirmed receipt of this freight", "receiving signed off on this shipment"]
 REFUSE = ["receiver refused this load at the dock", "consignee rejected this delivery would not sign",
@@ -146,10 +154,28 @@ def make_split(n, seed):
     return torch.tensor(imgs), torch.tensor(toks), torch.tensor(cond * 2 + outc)
 
 
-Xtr = make_split(CFG["n_train"], CFG["data_seed"])
-Xte = make_split(CFG["n_test"], CFG["data_seed"] + 1)
+if not PUBLIC:
+    Xtr = make_split(CFG["n_train"], CFG["data_seed"])
+    Xte = make_split(CFG["n_test"], CFG["data_seed"] + 1)
+    DATASET_INFO = dict(
+        dataset="synthetic", generated_by="make_split() in this script, fixed seeds", classes=CLASSES,
+        n_train=CFG["n_train"], n_test=CFG["n_test"], cue_noise_img=CFG["cue_noise_img"], cue_noise_note=CFG["cue_noise_note"],
+        chance=1.0 / len(CLASSES))
+else:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import public_data
+
+    pub = public_data.load(ROOT, CFG["pub_train_per_class"], CFG["pub_test_per_class"], CFG["data_seed"])
+    VOCAB, CLASSES = pub["vocab"], pub["classes"]  # the models read these at construction time
+    Xtr = (torch.tensor(pub["imgs_tr"]), torch.tensor(pub["toks_tr"]), torch.tensor(pub["y_tr"]))
+    Xte = (torch.tensor(pub["imgs_te"]), torch.tensor(pub["toks_te"]), torch.tensor(pub["y_te"]))
+    CFG["n_train"], CFG["n_test"] = len(Xtr[2]), len(Xte[2])
+    DATASET_INFO = pub["info"]
+    pub["subset"].to_csv(RESULTS_DIR / ("public_subset_quick.csv" if QUICK else "public_subset.csv"), index=False)
+    print(f"public set: {DATASET_INFO['n_train']} train / {DATASET_INFO['n_test']} held-out; keyword rule on the text alone = "
+          f"{DATASET_INFO['keyword_rule_on_text_acc']:.3f}")
 Xtr = [t.to(DEVICE) for t in Xtr]
-print("train", tuple(Xtr[0].shape), "test", tuple(Xte[0].shape), "classes", len(CLASSES), "vocab", len(VOCAB) + 1)
+print("dataset", DATASET, "| train", tuple(Xtr[0].shape), "test", tuple(Xte[0].shape), "classes", len(CLASSES), "vocab", len(VOCAB) + 1)
 
 
 # Step 4: Models (Written from Scratch so Every Variant Is Inspectable)
@@ -513,7 +539,7 @@ def build_results():
             acc_ci95=float(acc_df[acc_df.config == key].ci95.mean()),
             p50_mean=float(l.p50_ms.mean()), p50_std=float(l.p50_ms.std(ddof=1)) if len(l) > 1 else None,
             p95_mean=float(l.p95_ms.mean()), p95_std=float(l.p95_ms.std(ddof=1)) if len(l) > 1 else None)
-    return dict(tag=RUN_TAG, quick=QUICK, cfg=CFG, configs=board, scaling=scal_df.to_dict("records"),
+    return dict(tag=RUN_TAG, dataset=DATASET_INFO, quick=QUICK, cfg=CFG, configs=board, scaling=scal_df.to_dict("records"),
                 train_seconds=TRAIN_SECONDS, classes=CLASSES, gpu_resident_before_mem_pass_mb=_nan_none(RESIDENT_BEFORE_MB),
                 gpu_live_tensor_mb=_nan_none(LIVE_MB), gpu_live_tensor_count=LIVE_COUNT)
 
@@ -526,7 +552,7 @@ def write_outputs():
     acc_df.to_csv(RESULTS_DIR / f"accuracy_runs_{RUN_TAG}.csv", index=False)
     lat_df.to_csv(RESULTS_DIR / f"latency_runs_{RUN_TAG}.csv", index=False)
     manifest = dict(
-        tag=RUN_TAG, quick=QUICK, total_runtime_s=round(time.perf_counter() - T_START, 1),
+        tag=RUN_TAG, dataset=DATASET, quick=QUICK, total_runtime_s=round(time.perf_counter() - T_START, 1),
         hardware=hardware_snapshot(ENV), budgets=dict(CFG), timings_s=dict(train_all_models=TRAIN_SECONDS))
     (RESULTS_DIR / f"manifest_{RUN_TAG}.json").write_text(json.dumps(manifest, indent=1, default=str), encoding="utf-8")
     print(f"wrote results/results_{RUN_TAG}.json, manifest_{RUN_TAG}.json, accuracy_runs_{RUN_TAG}.csv, latency_runs_{RUN_TAG}.csv "
@@ -536,7 +562,23 @@ def write_outputs():
 write_outputs()
 
 
-# Step 12: Build the Benchmark Workbook (Excel)
+# Step 12: Public Evaluation Set (Second Run)
+if IS_CHILD:
+    print("[public] second run finished; the parent run builds the workbook and publishes")
+    sys.exit(0)
+if not PUBLIC and os.environ.get("BOARD_SKIP_PUBLIC") != "1":
+    print("[public] starting the public-set run ...")
+    proc = subprocess.Popen(
+        [sys.executable, "-u", str(ROOT / "scripts" / "Assignment_05_Tradeoff_Board.py")], cwd=ROOT,
+        env={**os.environ, "BOARD_DATASET": "public", "BOARD_CHILD": "1"},
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1)
+    for line in proc.stdout:
+        print(line, end="")
+    if proc.wait() != 0:
+        print(f"[public] WARNING: the public-set run exited with code {proc.returncode}; the workbook will hold the synthetic set only.")
+
+
+# Step 13: Build the Benchmark Workbook (Excel)
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_workbook
 
@@ -546,7 +588,7 @@ if not QUICK:  # the combined workbook covers every full run found in results/ (
 print("workbooks:", ", ".join(p.name for p in WORKBOOK_PATHS))
 
 
-# Step 13: Save the Results off Colab
+# Step 14: Save the Results off Colab
 if ENV["platform"] == "colab":
     import shutil
     from google.colab import files
@@ -557,7 +599,7 @@ else:
     print(f"results are in {RESULTS_DIR}")
 
 
-# Step 14: Write the Results into README.md and Push (asks first)
+# Step 15: Write the Results into README.md and Push (asks first)
 try:
     import update_readme
 except ImportError:

@@ -35,6 +35,12 @@ from openpyxl.utils import get_column_letter as col
 ROOT = Path(__file__).resolve().parents[1]
 TAG_ORDER = ["cpu", "t4gpu", "gpu"]
 TAG_LABEL = {"cpu": "VM / CPU only", "t4gpu": "Colab / T4 GPU", "gpu": "Other GPU"}
+
+
+def split_tag(tag):
+    """'t4gpu_public' -> ('t4gpu', 'public'); 'cpu' -> ('cpu', 'synthetic')."""
+    base = tag.removesuffix("_quick")  # smoke-test tags carry the same hardware and dataset
+    return (base[: -len("_public")], "public") if base.endswith("_public") else (base, "synthetic")
 HF = Font(bold=True, color="FFFFFF")
 HFILL = PatternFill("solid", fgColor="1F3A5F")
 INPUT_FILL = PatternFill("solid", fgColor="FFF2CC")
@@ -44,7 +50,10 @@ def discover_tags(root, explicit=None):
     if explicit:
         return explicit
     found = [p.stem.replace("results_", "") for p in (root / "results").glob("results_*.json")]
-    return sorted((t for t in found if not t.endswith("_quick")), key=lambda t: TAG_ORDER.index(t) if t in TAG_ORDER else 99)
+    def rank(tag):
+        hw, ds = split_tag(tag)
+        return (ds == "public", TAG_ORDER.index(hw) if hw in TAG_ORDER else 99)
+    return sorted((t for t in found if not t.endswith("_quick")), key=rank)
 
 
 def load(root, tags):
@@ -110,7 +119,7 @@ def sheet_board(wb, runs, nA, nL, notes):
     cols = ["tag", "config", "technique", "device", "precision", "params", "size MB", "accuracy (mean of seeds)", "accuracy std (seeds)",
             "acc 95% CI +/- (binomial)", "p50 ms (mean of trials)", "p50 std across trials", "p95 ms (mean of trials)", "p95 std across trials",
             "peak GPU MB (above floor)", "CPU RSS delta MB", "reference config", "acc delta vs ref", "p50 speedup vs ref (x)", "size ratio vs ref", "note",
-            "peak GPU MB (absolute)", "GPU floor MB (allocated before load)"]
+            "peak GPU MB (absolute)", "GPU floor MB (allocated before load)", "dataset"]
     header(ws, 4, cols)
     rowof, r = {}, 5
     for t, d in runs.items():
@@ -137,6 +146,7 @@ def sheet_board(wb, runs, nA, nL, notes):
         ws.cell(r, 21, notes.get(key, ""))
         ws.cell(r, 22, _nan(None if c.get("peak_gpu_abs_mb") is None else round(c["peak_gpu_abs_mb"], 3)))
         ws.cell(r, 23, _nan(None if c.get("gpu_floor_mb") is None else round(c["gpu_floor_mb"], 3)))
+        ws.cell(r, 24, split_tag(t)[1])
         for cc in (8, 9, 10, 18):
             ws.cell(r, cc).number_format = "0.0000"
         for cc in (11, 12, 13, 14, 19, 20):
@@ -148,36 +158,43 @@ def sheet_board(wb, runs, nA, nL, notes):
 
 
 def sheet_cross(wb, runs, rowof):
-    """Same config on both machines: the Intel-VM-vs-T4 comparison."""
-    if "cpu" not in runs or not any(t != "cpu" for t in runs):
+    """Same config on both machines, per evaluation set: the Intel-VM-vs-GPU comparison."""
+    pairs = []
+    for ds in ("synthetic", "public"):
+        vm = "cpu_public" if ds == "public" else "cpu"
+        gpu = next((t for t in runs if split_tag(t)[1] == ds and split_tag(t)[0] != "cpu"), None)
+        if vm in runs and gpu:
+            pairs.append((ds, vm, gpu))
+    if not pairs:
         return
-    gt = next(t for t in runs if t != "cpu")
     ws = wb.create_sheet("VM_vs_GPU", 1)
-    ws["A1"] = f"Same code, same seeds, same budgets: Intel VM (tag cpu) vs {TAG_LABEL.get(gt, gt)} (tag {gt})"
+    ws["A1"] = "Same code, same seeds, same budgets: Intel VM (hardware tag cpu) vs the GPU run, for each evaluation set"
     ws["A1"].font = Font(bold=True, size=13)
-    header(ws, 3, ["config", "VM acc", "GPU-run acc", "acc diff", "VM p50 ms", "GPU-run p50 ms", "p50 speedup (VM / GPU run)",
+    header(ws, 3, ["dataset", "config", "VM acc", "GPU-run acc", "acc diff", "VM p50 ms", "GPU-run p50 ms", "p50 speedup (VM / GPU run)",
                    "VM p95 ms", "GPU-run p95 ms", "p95 speedup", "where the GPU run executed it"])
     i = 4
-    for key in runs["cpu"]["results"]["configs"]:
-        if (gt, key) not in rowof:
-            continue
-        a, b = rowof[("cpu", key)], rowof[(gt, key)]
-        ws.cell(i, 1, key); ws.cell(i, 2, f"=Board!H{a}"); ws.cell(i, 3, f"=Board!H{b}"); ws.cell(i, 4, f"=C{i}-B{i}")
-        ws.cell(i, 5, f"=Board!K{a}"); ws.cell(i, 6, f"=Board!K{b}"); ws.cell(i, 7, f"=E{i}/F{i}")
-        ws.cell(i, 8, f"=Board!M{a}"); ws.cell(i, 9, f"=Board!M{b}"); ws.cell(i, 10, f"=H{i}/I{i}")
-        ws.cell(i, 11, runs[gt]["results"]["configs"][key]["device"])
-        for cc in (2, 3, 4):
-            ws.cell(i, cc).number_format = "0.0000"
-        for cc in range(5, 11):
-            ws.cell(i, cc).number_format = "0.000"
-        i += 1
+    for ds, vm, gt in pairs:
+        for key in runs[vm]["results"]["configs"]:
+            if (gt, key) not in rowof:
+                continue
+            a_, b_ = rowof[(vm, key)], rowof[(gt, key)]
+            ws.cell(i, 1, ds); ws.cell(i, 2, key); ws.cell(i, 3, f"=Board!H{a_}"); ws.cell(i, 4, f"=Board!H{b_}"); ws.cell(i, 5, f"=D{i}-C{i}")
+            ws.cell(i, 6, f"=Board!K{a_}"); ws.cell(i, 7, f"=Board!K{b_}"); ws.cell(i, 8, f"=F{i}/G{i}")
+            ws.cell(i, 9, f"=Board!M{a_}"); ws.cell(i, 10, f"=Board!M{b_}"); ws.cell(i, 11, f"=I{i}/J{i}")
+            ws.cell(i, 12, runs[gt]["results"]["configs"][key]["device"])
+            for cc in (3, 4, 5):
+                ws.cell(i, cc).number_format = "0.0000"
+            for cc in range(6, 12):
+                ws.cell(i, cc).number_format = "0.000"
+            i += 1
     ws.cell(i + 1, 1, "Quality should agree across hardware (small drift = floating-point order). Latency is what the hardware changes. "
                       "Note the INT8 and CPU rows run on the CPU of whichever machine this was: the T4 run's CPU is Colab's 2-vCPU Xeon, not the T4.")
-    ws.column_dimensions["A"].width = 24
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["B"].width = 24
 
 
 def sheet_scaling(wb, runs):
-    t0 = next(iter(runs))
+    t0 = next((t for t in runs if split_tag(t)[1] == "synthetic"), next(iter(runs)))
     scal = pd.DataFrame(runs[t0]["results"]["scaling"])
     ws = wb.create_sheet("ScalingLaw")
     ws["A1"] = "Scaling-law compute estimate (6ND and Chinchilla-style token budget)"
@@ -260,6 +277,18 @@ def sheet_method(wb, runs):
         "- The free Colab GPU is shared; absolute latencies vary between sessions, so compare configs within one run, not across runs.",
         f"- {len(c['seeds'])} training seeds: accuracy gaps smaller than about one seed std are not distinguishable.", "",
         "Reproduce: run the notebook on a Colab T4 (COLAB.md) and the installer script on the VM; both write results/*_<tag>.* and rebuild this workbook."]
+    pub = next((d["results"].get("dataset") for t, d in runs.items() if split_tag(t)[1] == "public"), None)
+    if pub:
+        at = next(i for i, t in enumerate(lines) if t.startswith("Driver notes are text transcripts")) + 1
+        lines[at:at] = [
+            f"Public evaluation set: Hugging Face dataset {pub['dataset']} (real photos with five human captions each). License: {pub['license']}. "
+            f"The dataset has no class labels, so the six scene classes are DERIVED: {pub['label_rule']}. Images are centre-cropped to 64x64 grayscale. "
+            f"Subset: {pub['n_train']} training photos (official train split, at most {pub['train_per_class']} per class) and {pub['n_test']} held-out photos "
+            f"(official dev and test splits, at most {pub['test_per_class']} per class); the list is in results/public_subset.csv.",
+            f"Because the labels come from captions, text is informative on this set: a keyword rule on the text input alone scores "
+            f"{pub['keyword_rule_on_text_acc']:.3f} on the held-out photos (chance {pub['chance']:.3f}). Read the public set as a check that the ranking of "
+            "techniques holds on real photos and real language, not as a measure of document-classification skill. Accuracy here is not comparable with the synthetic set.",
+        ]
     for i, t in enumerate(lines, 1):
         ws.cell(i, 1, t).alignment = Alignment(wrap_text=True)
     ws["A1"].font = Font(bold=True, size=13)
@@ -278,14 +307,18 @@ def chart(wb, runs, board_ws, out_dir):
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        fig, axes = plt.subplots(1, len(runs), figsize=(6.2 * len(runs), 4.6), squeeze=False)
-        for ax, (t, d) in zip(axes[0], runs.items()):
+        ncols = min(2, len(runs))
+        nrows = -(-len(runs) // ncols)
+        fig, axes = plt.subplots(nrows, ncols, figsize=(6.2 * ncols, 4.6 * nrows), squeeze=False)
+        for ax, (t, d) in zip(axes.flat, runs.items()):
             for k, c in d["results"]["configs"].items():
                 ax.scatter(c["p50_mean"], c["acc_mean"], s=40 + 4 * c["params"] / 1000, alpha=.7, marker="s" if c["device"] == "cpu" else "o")
                 ax.annotate(k.replace("_", " "), (c["p50_mean"], c["acc_mean"]), fontsize=7)
             ax.set_xlabel("p50 latency, batch 1 (ms)")
             ax.set_ylabel("test accuracy (mean of seeds)")
             ax.set_title(f"{d['manifest']['hardware'].get('host_label')}  [{t}]", fontsize=9)
+        for ax in list(axes.flat)[len(runs):]:
+            ax.set_visible(False)
         fig.tight_layout()
         path = out_dir / "board_tradeoff.png"
         fig.savefig(path, dpi=130)

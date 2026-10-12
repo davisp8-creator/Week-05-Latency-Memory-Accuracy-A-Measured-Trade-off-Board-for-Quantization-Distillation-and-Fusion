@@ -1,0 +1,59 @@
+{
+ "tag": "cpu_public",
+ "dataset": "public",
+ "quick": false,
+ "total_runtime_s": 825.8,
+ "hardware": {
+  "platform": "windows",
+  "system": "Windows",
+  "python": "3.14.7",
+  "torch": "2.14.0+cpu",
+  "torch_cuda_build": null,
+  "device": "cpu",
+  "gpu_name": null,
+  "vram_gb": null,
+  "compute_capability": null,
+  "tag": "cpu",
+  "host_class": "intel-vm",
+  "cpu_model": "13th Gen Intel(R) Core(TM) i9-13900HX",
+  "cpu_vendor": "intel",
+  "virtualized": true,
+  "vm_product": "Virtual Machine",
+  "host_label": "Intel VM (CPU only)",
+  "cpu_count": 16,
+  "ram_gib": 11.3,
+  "driver": null,
+  "numpy": "2.5.3",
+  "pandas": "3.0.5",
+  "matplotlib": "3.11.2"
+ },
+ "budgets": {
+  "n_train": 2836,
+  "n_test": 884,
+  "epochs": 30,
+  "seeds": [
+   0,
+   1,
+   2
+  ],
+  "trials": 5,
+  "n_iter": 300,
+  "n_warm": 50,
+  "mem_iters": 20,
+  "batch": 64,
+  "lr": 0.001,
+  "data_seed": 1234,
+  "kd_alpha": 0.5,
+  "kd_T": 2.0,
+  "cpu_threads": 2,
+  "img_noise": 0.12,
+  "cue_depth": 0.22,
+  "cue_noise_img": 0.1,
+  "cue_noise_note": 0.12,
+  "pub_train_per_class": 500,
+  "pub_test_per_class": 150
+ },
+ "timings_s": {
+  "train_all_models": 809.5
+ }
+}

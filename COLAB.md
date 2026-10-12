@@ -52,9 +52,13 @@ dataset stayed on the GPU and needs parking before the pass. If you see:
 
 Don't `pip install -r requirements.txt` on Colab. It pins the VM's CPU torch and would hide the T4 from torch.
 
-Expect about 15–25 minutes in total (training dominates; latency timing is a few minutes).
+Expect about 10–15 minutes in total on a T4: about 5 minutes for the synthetic set, then Step 12 runs the **public set** as a
+second pass (it downloads about 500 MB of Flickr8k photos the first time, then trains and times the same configurations; its output
+streams into the same cell). Results get the tags `t4gpu` and `t4gpu_public`. Set `BOARD_SKIP_PUBLIC=1` before Run all to skip it.
+If the public pass prints a WARNING (for example a failed download), the synthetic results are kept and the workbook will hold
+only that set; re-run the notebook to retry.
 
-## 4. The end-of-run prompts (Step 14)
+## 4. The end-of-run prompts (Step 15)
 
 ```text
 Write these results into README.md (Intel VM vs Colab T4 comparison)? [y/N] y
@@ -83,7 +87,7 @@ pushed without your second yes.
 ## 5. If you skipped the push
 
 - **Later from Colab** (same session): `!python scripts/update_readme.py --push`
-- **From the VM:** download the zip from Step 13, unzip it into `results/`, then
+- **From the VM:** download the zip from Step 14, unzip it into `results/`, then
   `python scripts/build_workbook.py` and `python scripts/update_readme.py --push --tag t4gpu`.
   It uses the VM's normal git credentials if you leave the token prompt blank.
 - **Re-render only, no git:** `python scripts/update_readme.py`

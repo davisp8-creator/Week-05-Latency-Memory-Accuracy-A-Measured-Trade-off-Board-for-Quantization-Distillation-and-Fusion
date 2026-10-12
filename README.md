@@ -41,6 +41,21 @@ It also installs **only missing** packages (it never reinstalls Colab's CUDA tor
 that torch can't use (a CPU wheel installed over the CUDA build), and writes a hardware manifest (GPU, VRAM, driver, CPU
 model, RAM, VM product, package versions) next to the results. `setup(require_t4=True)` refuses to run anywhere but a T4.
 
+## Evaluation sets
+
+Every configuration is benchmarked on two sets, with the same code, seeds and budgets:
+
+| Set | What it is | Labels |
+|---|---|---|
+| **Synthetic** (generated in `scripts/Assignment_05_Tradeoff_Board.py`, Step 3) | A rendered bill-of-lading image plus a driver-note transcript, 8,000 train / 2,000 test, noise and decoys on both inputs | Cargo condition (from the image) x receiver outcome (from the note); 6 classes |
+| **Public** (`scripts/public_data.py`) | Real photos with human captions: Hugging Face [`intro/flickr8k`](https://huggingface.co/datasets/intro/flickr8k), license declared CC0-1.0 on the dataset card; 2,836 train / 884 held-out photos from the official splits | **Derived by me**: the scene category (dog, water, snow/mountain, ball sport, street/crowd, child) whose keywords occur most often in captions 1-4. Caption 0 is the text input and is never read by the label rule |
+
+The public set is a check that the ranking of techniques holds on real photos and real language. It is not a document-classification
+result: the labels are weak (caption keywords), text alone is already informative (a plain keyword rule on caption 0 scores 0.738 on
+the held-out photos; chance is 0.167), and the photos are everyday scenes, not scanned bills. Accuracies are not comparable across the
+two sets. The exact photos used are listed in `results/public_subset.csv`. A plain *Run all* produces both sets (the public set runs as
+a second pass); `BOARD_SKIP_PUBLIC=1` skips it.
+
 ## Measurement protocol
 
 - **Warm-up** before every timed trial; **`torch.cuda.synchronize()`** before and after every timed forward on GPU.
@@ -69,9 +84,9 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 | Host class | `intel-vm` | `colab-t4` |
 | Platform / Python | windows / 3.14.7 | colab / 3.13.15 |
 | torch | `2.14.1+cpu` | `2.11.0+cu130` |
-| **Total notebook runtime** | 1,177.5 s | 298.7 s |
+| **Total notebook runtime** (synthetic set) | 1,177.5 s | 298.7 s |
 
-### Board
+### Board: synthetic set (generated here)
 
 | Config | Intel VM · CPU only | Colab · T4 GPU |
 |---|---:|---:|
@@ -106,6 +121,37 @@ Same code, same seeds, same budgets on every machine. **Accuracy should agree ac
 | `baseline_fp16` | – | 0.280 / 0.912 |
 | `cpu_baseline_fp32` | – | 0.543 / n/a |
 
+### Board: public set (Flickr8k photos + human captions, derived labels)
+
+Real photos with human captions from Hugging Face `intro/flickr8k` (license declared CC0-1.0). 2836 training and 884 held-out photos. The dataset has no class labels: the six scene classes are derived from captions 1–4 by a keyword rule, and caption 0 is the text input. A keyword rule on that text alone scores 0.738 (chance 0.167), so read this set as a check that the technique ranking holds on real data, not as a document-classification result. Accuracy is not comparable with the synthetic set.
+
+| Config | Intel VM · CPU only |
+|---|---:|
+| **Accuracy (mean ± seed std)** | |
+| `baseline_fp32` | 0.795 ± 0.008 |
+| `linear_attn` | 0.794 ± 0.012 |
+| `early_fusion` | 0.769 ± 0.015 |
+| `early_fusion_2x` | 0.777 ± 0.010 |
+| `student_kd` | 0.732 ± 0.007 |
+| `student_nokd` | 0.739 ± 0.006 |
+| `cpu_baseline_int8` | 0.795 ± 0.011 |
+| **p50 / p95 latency, ms (batch 1)** | |
+| `baseline_fp32` | 0.630 / 0.925 |
+| `linear_attn` | 0.852 / 1.151 |
+| `early_fusion` | 0.567 / 0.847 |
+| `early_fusion_2x` | 0.564 / 0.851 |
+| `student_kd` | 0.396 / 0.630 |
+| `student_nokd` | 0.399 / 0.632 |
+| `cpu_baseline_int8` | 1.057 / 1.446 |
+| **Model size (MB) / peak GPU memory above floor (MB)** | |
+| `baseline_fp32` | 0.722 / n/a |
+| `linear_attn` | 0.722 / n/a |
+| `early_fusion` | 0.626 / n/a |
+| `early_fusion_2x` | 0.626 / n/a |
+| `student_kd` | 0.091 / n/a |
+| `student_nokd` | 0.091 / n/a |
+| `cpu_baseline_int8` | 0.423 / n/a |
+
 ![Accuracy vs latency](results/figs_workbook/board_tradeoff.png)
 
 <!-- RESULTS:END -->
@@ -123,9 +169,11 @@ scripts/
   Assignment_05_Tradeoff_Board.py             full script: SCRIPT DETAILS region, Step 1-14 banners with
                                               explanations and reference links (single source)
   Assignment_05_Tradeoff_Board_Simplified.py  same code, banners/explanations/references stripped
+  public_data.py          loads the public Flickr8k subset and derives its labels (photos cached under data/, gitignored)
   build_workbook.py       results/*.json -> Excel workbook (Board, Acc_Runs, Latency_Runs, ScalingLaw, ...)
   build_notebook.py       regenerates the .ipynb and the _Simplified.py from the full script
   update_readme.py        writes the comparison into this README and optionally pushes it
-results/                  results_<tag>.json, manifest_<tag>.json, *_runs_<tag>.csv, Week05_Benchmark_Workbook.xlsx
+data/                     downloaded public-set photos (gitignored; rebuilt by scripts/public_data.py)
+results/                  results_<tag>.json (tags t4gpu, cpu, and t4gpu_public, cpu_public for the public set), public_subset.csv, manifest_<tag>.json, *_runs_<tag>.csv, Week05_Benchmark_Workbook.xlsx
 docs/video_outline.md     speaker notes for the video walkthrough
 ```

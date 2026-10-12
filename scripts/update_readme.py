@@ -36,8 +36,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BEGIN, END = "<!-- RESULTS:BEGIN -->", "<!-- RESULTS:END -->"
-TAG_ORDER = ["cpu", "t4gpu", "gpu"]
-TAG_LABEL = {"cpu": "Intel VM · CPU only", "t4gpu": "Colab · T4 GPU", "gpu": "Other GPU"}
+TAG_ORDER = ["cpu", "t4gpu", "gpu", "cpu_public", "t4gpu_public", "gpu_public"]
+HW_LABEL = {"cpu": "Intel VM · CPU only", "t4gpu": "Colab · T4 GPU", "gpu": "Other GPU"}
+TAG_LABEL = {**HW_LABEL, **{f"{k}_public": f"{v} (public set)" for k, v in HW_LABEL.items()}}
+
+
+def hw_of(tag):
+    return tag[: -len("_public")] if tag.endswith("_public") else tag
 
 
 def load_runs(root):
@@ -68,30 +73,13 @@ def device_label(m):
     return f"CPU only: {h['cpu_model']}, {h['cpu_count']} logical cores{vm}"
 
 
-def render_section(root=ROOT):
-    runs = load_runs(root)
-    if not runs:
-        return f"{BEGIN}\n_No full-run results in `results/` yet._\n{END}"
-    tags = list(runs)
-    cmp_ = "cpu" in runs and any(t != "cpu" for t in runs)
-    gtag = next((t for t in tags if t != "cpu"), None)
-    head = "| | " + " | ".join(TAG_LABEL[t] for t in tags) + " |"
+def board_lines(runs, tags):
+    """Accuracy, latency and size tables for the given tags (one evaluation set, one or two machines)."""
+    head = "| Config | " + " | ".join(HW_LABEL[hw_of(t)] for t in tags) + " |"
     sep = "|---|" + "---:|" * len(tags)
-
-    hw = [head, sep,
-          "| Device | " + " | ".join(device_label(runs[t][1]) for t in tags) + " |",
-          "| Host class | " + " | ".join(f"`{runs[t][1]['hardware']['host_class']}`" for t in tags) + " |",
-          "| Platform / Python | " + " | ".join(f"{runs[t][1]['hardware']['platform']} / {runs[t][1]['hardware']['python']}" for t in tags) + " |",
-          "| torch | " + " | ".join(f"`{runs[t][1]['hardware']['torch']}`" for t in tags) + " |",
-          "| **Total notebook runtime** | " + " | ".join(fmt(runs[t][1]["total_runtime_s"], "s") for t in tags) + " |"]
-
     keys = []
     for t in tags:
         keys += [k for k in runs[t][0]["configs"] if k not in keys]
-
-    def cell(t, k, field, kind):
-        c = runs[t][0]["configs"].get(k)
-        return fmt(c[field], kind) if c else "–"
 
     def acc_cell(t, k):
         c = runs[t][0]["configs"].get(k)
@@ -102,20 +90,50 @@ def render_section(root=ROOT):
 
     def lat_cell(t, k):
         c = runs[t][0]["configs"].get(k)
-        if not c:
-            return "–"
-        return f"{c['p50_mean']:.3f} / {c['p95_mean']:.3f}"
+        return f"{c['p50_mean']:.3f} / {c['p95_mean']:.3f}" if c else "–"
 
-    board = [head.replace("| |", "| Config |", 1), sep]
-    for label, fn in (("Accuracy (mean ± seed std)", acc_cell), ("p50 / p95 latency, ms (batch 1)", lat_cell)):
+    def mem_cell(t, k):
+        c = runs[t][0]["configs"].get(k)
+        return f"{c['size_mb']:.3f} / {fmt(c['peak_gpu_mb'], 'p')}" if c else "–"
+
+    board = [head, sep]
+    for label, fn in (("Accuracy (mean ± seed std)", acc_cell), ("p50 / p95 latency, ms (batch 1)", lat_cell),
+                      ("Model size (MB) / peak GPU memory above floor (MB)", mem_cell)):
         board.append("| **" + label + "** |" + " |" * len(tags))
         for k in keys:
             board.append(f"| `{k}` | " + " | ".join(fn(t, k) for t in tags) + " |")
-    board.append("| **Model size (MB) / peak GPU memory above floor (MB)** |" + " |" * len(tags))
-    for k in keys:
-        board.append(f"| `{k}` | " + " | ".join(
-            (f"{runs[t][0]['configs'][k]['size_mb']:.3f} / {fmt(runs[t][0]['configs'][k]['peak_gpu_mb'], 'p')}" if k in runs[t][0]["configs"] else "–")
-            for t in tags) + " |")
+    return board
+
+
+def render_section(root=ROOT):
+    runs = load_runs(root)
+    if not runs:
+        return f"{BEGIN}\n_No full-run results in `results/` yet._\n{END}"
+    syn = [t for t in runs if not t.endswith("_public")]
+    pub = [t for t in runs if t.endswith("_public")]
+    hw_tags = syn or pub
+    cmp_ = len(hw_tags) > 1
+    head = "| | " + " | ".join(HW_LABEL[hw_of(t)] for t in hw_tags) + " |"
+    sep = "|---|" + "---:|" * len(hw_tags)
+    hw = [head, sep,
+          "| Device | " + " | ".join(device_label(runs[t][1]) for t in hw_tags) + " |",
+          "| Host class | " + " | ".join(f"`{runs[t][1]['hardware']['host_class']}`" for t in hw_tags) + " |",
+          "| Platform / Python | " + " | ".join(f"{runs[t][1]['hardware']['platform']} / {runs[t][1]['hardware']['python']}" for t in hw_tags) + " |",
+          "| torch | " + " | ".join(f"`{runs[t][1]['hardware']['torch']}`" for t in hw_tags) + " |",
+          "| **Total notebook runtime** (synthetic set) | " + " | ".join(fmt(runs[t][1]["total_runtime_s"], "s") for t in hw_tags) + " |"]
+
+    body = []
+    if syn:
+        body += ["### Board: synthetic set (generated here)", "", *board_lines(runs, syn), ""]
+    if pub:
+        d = runs[pub[0]][0].get("dataset") or {}
+        body += ["### Board: public set (Flickr8k photos + human captions, derived labels)", "",
+                 f"Real photos with human captions from Hugging Face `{d.get('dataset', 'intro/flickr8k')}` (license declared CC0-1.0). "
+                 f"{d.get('n_train', '?')} training and {d.get('n_test', '?')} held-out photos. The dataset has no class labels: the six scene classes "
+                 "are derived from captions 1–4 by a keyword rule, and caption 0 is the text input. "
+                 f"A keyword rule on that text alone scores {d.get('keyword_rule_on_text_acc', float('nan')):.3f} (chance {d.get('chance', float('nan')):.3f}), "
+                 "so read this set as a check that the technique ranking holds on real data, not as a document-classification result. "
+                 "Accuracy is not comparable with the synthetic set.", "", *board_lines(runs, pub), ""]
 
     note = "" if cmp_ else ("\n> Only one machine is in `results/` so far. The other column appears after you run it "
                             "(Windows/macOS installer for the VM, COLAB.md for the T4).\n")
@@ -131,7 +149,7 @@ def render_section(root=ROOT):
         "scaling-law sheet: `results/Week05_Benchmark_Workbook.xlsx`.",
         "",
         "### Hardware", "", *hw, "",
-        "### Board", "", *board, "",
+        *body,
         *([f"![Accuracy vs latency](results/figs_workbook/{fig.name})", ""] if fig.exists() else []),
         END])
 
@@ -218,9 +236,11 @@ def push_results(root, tag, token=None, ask=input):
     require_clone(root)
     ensure_identity(root, ask)
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")[1]
-    result_paths = [p for p in (f"results/results_{tag}.json", f"results/manifest_{tag}.json", f"results/accuracy_runs_{tag}.csv",
-                                f"results/latency_runs_{tag}.csv", "results/Week05_Benchmark_Workbook.xlsx",
-                                "results/figs_workbook") if (root / p).exists()]
+    tags = [tag] if tag.endswith("_public") else [tag, f"{tag}_public"]  # a hardware tag also covers its public-set run
+    result_paths = [p for p in [f"results/{n}_{t}.{x}" for t in tags for n, x in
+                                (("results", "json"), ("manifest", "json"), ("accuracy_runs", "csv"), ("latency_runs", "csv"))]
+                    + ["results/public_subset.csv", "results/Week05_Benchmark_Workbook.xlsx", "results/figs_workbook"]
+                    if (root / p).exists()]
     _git(root, "checkout", "--", "README.md")  # regenerated after the pull, so drop the local render
     _git(root, "add", "--", *result_paths)
     if _git(root, "diff", "--cached", "--quiet", check=False)[0]:
