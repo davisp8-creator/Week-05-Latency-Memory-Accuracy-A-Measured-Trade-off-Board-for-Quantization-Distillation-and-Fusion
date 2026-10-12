@@ -17,18 +17,17 @@ Optional, recommended: in Colab open the 🔑 **Secrets** panel, add a secret na
 as its value, and turn on *Notebook access*. The notebook then uses it automatically and never asks you to paste it.
 Without the secret, you get a hidden prompt at the end (the token isn't echoed or saved).
 
-## 2. Runtime and clone
+## 2. Runtime and notebook
 
-**Runtime → Change runtime type → T4 GPU → Save.** Then, in the notebook's first cell (or a scratch cell above it):
+**Runtime → Change runtime type → T4 GPU → Save.** Upload `Assignment_05_Tradeoff_Board_Colab.ipynb` (File → Upload notebook,
+or open it from GitHub). The notebook's first code cell, **Colab Bootstrap**, clones this repo once and changes into it, so
+there is nothing to type. It is safe to re-run: when `env_setup.py` already exists in the working directory it does nothing,
+so **Run all** never clones twice or nests folders.
 
-```python
-!git clone https://github.com/davisp8-creator/Week-05-Latency-Memory-Accuracy-A-Measured-Trade-off-Board-for-Quantization-Distillation-and-Fusion.git
-%cd Week-05-Latency-Memory-Accuracy-A-Measured-Trade-off-Board-for-Quantization-Distillation-and-Fusion
-```
-
-Results land in the clone's `results/` folder, which is what makes the end-of-run push
-possible, and the workbook step imports `scripts/build_workbook.py` from the clone. If you skip the clone, Step 1 warns
-you and Step 12 fails with a clear import error; the zip download in Step 13 still needs the clone's `results/` folder.
+Results land in the clone's `results/` folder, which is what makes the end-of-run push possible, and the workbook step
+imports `scripts/build_workbook.py` from the clone. Do not add your own `!git clone` / `%cd` cell: an unguarded one clones
+again on every Run all and descends one folder deeper each time. If that already happened, use
+**Runtime → Disconnect and delete runtime**, then reconnect and Run all.
 
 ## 3. Run all
 
@@ -47,7 +46,7 @@ figures are inflated and should not be used. If you see:
 | `Colab is on a CPU-only runtime` | Step 2 was skipped | Change runtime type to T4 GPU, then Run all again |
 | `nvidia-smi sees a GPU ... but torch cannot use it` | A CPU torch was installed over Colab's CUDA build | Runtime → Disconnect and delete runtime, then run again without installing anything |
 | `GPU is <name>, not a T4` | Colab assigned a different GPU | Fine; results are tagged `gpu` so they aren't mistaken for T4 numbers |
-| `not running inside a git clone` | Step 2's `%cd` didn't happen | Clone and `%cd` (step 2), then Run all |
+| `not running inside a git clone` | The Colab Bootstrap cell was deleted or skipped | Restore it (rebuild with `python scripts/build_notebook.py`), or Disconnect and delete runtime, then Run all |
 
 Don't `pip install -r requirements.txt` on Colab. It pins the VM's CPU torch and would hide the T4 from torch.
 

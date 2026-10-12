@@ -14,6 +14,7 @@ Usage:  python scripts/build_notebook.py
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,8 +99,41 @@ def cell(kind, lines):
     return c
 
 
+def repo_url():
+    """The real clone URL, read from the git remote at build time (never typed by hand)."""
+    out = subprocess.run(["git", "remote", "get-url", "origin"], cwd=ROOT, capture_output=True, text=True)
+    url = out.stdout.strip()
+    return url if out.returncode == 0 and url else None
+
+
+def bootstrap_cells(url):
+    """Colab only has the uploaded notebook, so clone the repo once and move into it.
+    Safe to re-run (Run all): skipped when already inside the clone, so it never nests."""
+    code = [
+        "# Colab bootstrap: clone the repo once and move into it. Safe to re-run: skipped inside the clone.",
+        "import os, subprocess",
+        "",
+        f'REPO_URL = "{url}"',
+        'REPO_DIR = REPO_URL.rsplit("/", 1)[-1].removesuffix(".git")',
+        'if not os.path.exists("env_setup.py"):',
+        "    if not os.path.isdir(REPO_DIR):",
+        '        subprocess.run(["git", "clone", "-q", REPO_URL], check=True)',
+        "    os.chdir(REPO_DIR)",
+        'print("working directory:", os.getcwd())',
+    ]
+    md = ["## Colab Bootstrap", "",
+          "A Colab runtime starts with only this notebook. This cell clones the repo once and changes into it, so "
+          "`scripts/` and `results/` exist. Running it again does nothing."]
+    return [cell("markdown", md), cell("code", code)]
+
+
 def build_notebook(header, steps):
     cells = [cell("markdown", header_markdown(header))]
+    url = repo_url()
+    if url:
+        cells += bootstrap_cells(url)
+    else:
+        print("[build_notebook] no git remote 'origin': notebook has no Colab bootstrap cell (clone by hand, see COLAB.md)")
     for st in steps:
         md = [f"## Step {st['num']}: {st['title']}", ""] + st["desc"]
         if st["refs"]:

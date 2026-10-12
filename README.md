@@ -16,7 +16,7 @@ Brightline Logistics scouting study: which small model should ship to in-cab And
 
 | Where | How |
 |---|---|
-| **Google Colab T4** (graded run) | *Runtime → Change runtime type → T4 GPU*, `git clone` this repo and `%cd` into it, then *Run all*. At the end it asks whether to write the Intel-VM vs T4 comparison into this README and push it with a fine-grained token. Full guide: [COLAB.md](COLAB.md) |
+| **Google Colab T4** (graded run) | *Runtime → Change runtime type → T4 GPU*, upload the notebook (its first cell clones this repo once and is safe to re-run), then *Run all*. At the end it asks whether to write the Intel-VM vs T4 comparison into this README and push it with a fine-grained token. Full guide: [COLAB.md](COLAB.md) |
 | **Windows** | `powershell -ExecutionPolicy Bypass -File .\Install-Assignment_05_Tradeoff_Board_Windows.ps1` |
 | **macOS** | Double-click `Install-Assignment_05_Tradeoff_Board_macOS.command` (first time: right-click → Open, or `chmod +x` it) |
 
