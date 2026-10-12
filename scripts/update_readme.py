@@ -111,7 +111,7 @@ def render_section(root=ROOT):
         board.append("| **" + label + "** |" + " |" * len(tags))
         for k in keys:
             board.append(f"| `{k}` | " + " | ".join(fn(t, k) for t in tags) + " |")
-    board.append("| **Model size (MB) / peak GPU memory (MB)** |" + " |" * len(tags))
+    board.append("| **Model size (MB) / peak GPU memory above floor (MB)** |" + " |" * len(tags))
     for k in keys:
         board.append(f"| `{k}` | " + " | ".join(
             (f"{runs[t][0]['configs'][k]['size_mb']:.3f} / {fmt(runs[t][0]['configs'][k]['peak_gpu_mb'], 'p')}" if k in runs[t][0]["configs"] else "–")

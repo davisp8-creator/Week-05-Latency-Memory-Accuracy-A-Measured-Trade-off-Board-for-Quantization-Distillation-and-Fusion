@@ -37,9 +37,11 @@ again on every Run all and descends one folder deeper each time. If that already
 [setup] host=colab-t4 (Colab (T4 GPU))  platform=colab  python=3.12.x  torch=2.x.x+cu12x  device=cuda  gpu=Tesla T4 (14.7 GB, sm_75)  results tag='t4gpu'
 ```
 
-Check for **`host=colab-t4`**, **`gpu=Tesla T4`** and **`results tag='t4gpu'`**. Step 8 also prints
-`GPU memory still allocated before the memory pass: ~0 MB`; if that number is large, the per-config peak-memory
-figures are inflated and should not be used. If you see:
+Check for **`host=colab-t4`**, **`gpu=Tesla T4`** and **`results tag='t4gpu'`**. Step 8 also prints how much
+GPU memory is allocated before the memory pass and how much of it belongs to tensors Python can still reach. A
+leftover of roughly 10-20 MB with almost no reachable tensors is library workspace (cuBLAS), not a leak; the board
+reports each config's peak above its own floor, so it is excluded. A large reachable-tensor figure means a model or
+dataset stayed on the GPU and needs parking before the pass. If you see:
 
 | Message | Meaning | Fix |
 |---|---|---|

@@ -406,13 +406,35 @@ Xtr = [t.cpu() for t in Xtr]
 gc.collect()
 if HAS_CUDA:
     torch.cuda.empty_cache()
+
+
+def cuda_live_tensors():
+    """MB and count of CUDA tensors Python can still reach: separates a leaked model from library workspace."""
+    total, count = 0, 0
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) and obj.is_cuda:
+                total += obj.element_size() * obj.nelement()
+                count += 1
+        except (ReferenceError, RuntimeError):  # dead weak proxies and half-built objects are not ours
+            continue
+    return total / 2 ** 20, count
+
+
 RESIDENT_BEFORE_MB = torch.cuda.memory_allocated() / 2 ** 20 if HAS_CUDA else float("nan")
-print(f"GPU memory still allocated before the memory pass: {RESIDENT_BEFORE_MB:.2f} MB (should be ~0)")
+LIVE_MB, LIVE_COUNT = cuda_live_tensors() if HAS_CUDA else (float("nan"), 0)
+if HAS_CUDA:
+    print(f"GPU memory allocated before the memory pass: {RESIDENT_BEFORE_MB:.2f} MB; "
+          f"tensors Python can still reach: {LIVE_MB:.2f} MB in {LIVE_COUNT} tensors")
+    if RESIDENT_BEFORE_MB - LIVE_MB > 1:
+        print("[memory] the rest is library workspace (for example the cuBLAS workspace), not a leaked model. "
+              "Each config's peak below is reported above its own floor.")
 for key in BM:
     gc.collect()
     if HAS_CUDA:
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
+    floor_mb = torch.cuda.memory_allocated() / 2 ** 20 if HAS_CUDA else float("nan")
     rss0 = proc.memory_info().rss
     m, dev, dt = place(key)
     ins = sample_inputs(dev, dt)
@@ -423,8 +445,11 @@ for key in BM:
     buf = io.BytesIO()
     torch.save(m.state_dict(), buf)
     src_model = BM[key][0]
+    on_gpu = HAS_CUDA and dev.type == "cuda"
+    peak_abs_mb = torch.cuda.max_memory_allocated() / 2 ** 20 if on_gpu else float("nan")
     mem[key] = dict(
-        peak_gpu_mb=(torch.cuda.max_memory_allocated() / 2 ** 20 if (HAS_CUDA and dev.type == "cuda") else float("nan")),
+        peak_gpu_mb=peak_abs_mb - floor_mb if on_gpu else float("nan"),
+        peak_gpu_abs_mb=peak_abs_mb, gpu_floor_mb=floor_mb if on_gpu else float("nan"),
         size_mb=buf.tell() / 2 ** 20, rss_delta_mb=(proc.memory_info().rss - rss0) / 2 ** 20,
         params=n_params(models[("late", 0)]) if key == "cpu_baseline_int8" else n_params(src_model), device=dev.type)
     del m, ins
@@ -483,12 +508,14 @@ def build_results():
         board[key] = dict(
             label=label, precision=PRECISION[key], device=mem[key]["device"], ref=ref, params=int(mem[key]["params"]),
             size_mb=mem[key]["size_mb"], peak_gpu_mb=mem[key]["peak_gpu_mb"], rss_delta_mb=mem[key]["rss_delta_mb"],
+            peak_gpu_abs_mb=mem[key]["peak_gpu_abs_mb"], gpu_floor_mb=mem[key]["gpu_floor_mb"],
             acc_mean=float(a.mean()), acc_std=float(a.std(ddof=1)) if len(a) > 1 else None,
             acc_ci95=float(acc_df[acc_df.config == key].ci95.mean()),
             p50_mean=float(l.p50_ms.mean()), p50_std=float(l.p50_ms.std(ddof=1)) if len(l) > 1 else None,
             p95_mean=float(l.p95_ms.mean()), p95_std=float(l.p95_ms.std(ddof=1)) if len(l) > 1 else None)
     return dict(tag=RUN_TAG, quick=QUICK, cfg=CFG, configs=board, scaling=scal_df.to_dict("records"),
-                train_seconds=TRAIN_SECONDS, classes=CLASSES, gpu_resident_before_mem_pass_mb=_nan_none(RESIDENT_BEFORE_MB))
+                train_seconds=TRAIN_SECONDS, classes=CLASSES, gpu_resident_before_mem_pass_mb=_nan_none(RESIDENT_BEFORE_MB),
+                gpu_live_tensor_mb=_nan_none(LIVE_MB), gpu_live_tensor_count=LIVE_COUNT)
 
 
 RESULTS = build_results()

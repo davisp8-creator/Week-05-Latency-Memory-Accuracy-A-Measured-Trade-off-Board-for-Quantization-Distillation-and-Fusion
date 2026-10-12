@@ -109,7 +109,8 @@ def sheet_board(wb, runs, nA, nL, notes):
     ws["A2"] = "   ||   ".join(desc) + ("   ** QUICK SMOKE RUN - NOT FINAL NUMBERS **" if any(d["results"]["quick"] for d in runs.values()) else "")
     cols = ["tag", "config", "technique", "device", "precision", "params", "size MB", "accuracy (mean of seeds)", "accuracy std (seeds)",
             "acc 95% CI +/- (binomial)", "p50 ms (mean of trials)", "p50 std across trials", "p95 ms (mean of trials)", "p95 std across trials",
-            "peak GPU MB", "CPU RSS delta MB", "reference config", "acc delta vs ref", "p50 speedup vs ref (x)", "size ratio vs ref", "note"]
+            "peak GPU MB (above floor)", "CPU RSS delta MB", "reference config", "acc delta vs ref", "p50 speedup vs ref (x)", "size ratio vs ref", "note",
+            "peak GPU MB (absolute)", "GPU floor MB (allocated before load)"]
     header(ws, 4, cols)
     rowof, r = {}, 5
     for t, d in runs.items():
@@ -134,6 +135,8 @@ def sheet_board(wb, runs, nA, nL, notes):
             rr = rowof[(t, c["ref"])]
             ws.cell(r, 18, f"=H{r}-H{rr}"); ws.cell(r, 19, f"=K{rr}/K{r}"); ws.cell(r, 20, f"=G{r}/G{rr}")
         ws.cell(r, 21, notes.get(key, ""))
+        ws.cell(r, 22, _nan(None if c.get("peak_gpu_abs_mb") is None else round(c["peak_gpu_abs_mb"], 3)))
+        ws.cell(r, 23, _nan(None if c.get("gpu_floor_mb") is None else round(c["gpu_floor_mb"], 3)))
         for cc in (8, 9, 10, 18):
             ws.cell(r, cc).number_format = "0.0000"
         for cc in (11, 12, 13, 14, 19, 20):
@@ -251,6 +254,7 @@ def sheet_method(wb, runs):
         "- Synthetic data: absolute accuracy says nothing about real scanned bills of lading; only the relative ordering under controlled conditions.",
         "- Neither machine is the in-cab tablet. CPU INT8 on a VM or on 2 Colab vCPUs is a proxy; real Android NPU/XNNPACK latencies will differ.",
         "- A virtual machine adds scheduling jitter, which is why p95 and trial-to-trial spread are reported.",
+        "- GPU memory is the peak above the allocation present just before each config loads (weights, activations, and any workspace that config allocates). Library workspaces such as cuBLAS stay allocated after training and would add the same offset to every row; the absolute peak and the floor are in columns V and W.",
         "- Sequence length 24 is too short for linear attention to pay off; the variant tests that, not long-context behaviour.",
         "- Dynamic INT8 leaves convolutions in FP32; full static INT8 or QAT could behave differently.",
         "- The free Colab GPU is shared; absolute latencies vary between sessions, so compare configs within one run, not across runs.",
