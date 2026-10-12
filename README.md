@@ -181,5 +181,4 @@ scripts/
   update_readme.py        writes the comparison into this README and optionally pushes it
 data/                     downloaded public-set photos (gitignored; rebuilt by scripts/public_data.py)
 results/                  results_<tag>.json (tags t4gpu, cpu, and t4gpu_public, cpu_public for the public set), public_subset.csv, manifest_<tag>.json, *_runs_<tag>.csv, Week05_Benchmark_Workbook.xlsx
-docs/video_outline.md     speaker notes for the video walkthrough
 ```
